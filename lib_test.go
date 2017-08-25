@@ -1,7 +1,6 @@
 package bertlv
 
 import (
-	"encoding/binary"
 	"fmt"
 	"testing"
 )
@@ -26,78 +25,6 @@ var testdata = []byte{
 	0x1f, 0x0b, 0x04, 0x01, 0x00, 0x00, 0x00, 0x1f, 0x29, 0x01, 0x01,
 }
 
-func printTLV(tlv []byte) int {
-	var (
-		t, l  []byte
-		lUint uint64
-		offs  int
-	)
-
-	if tlv[0]&31 != 31 {
-		t = []byte{tlv[0]}
-	} else {
-		t = make([]byte, 1, 8)
-		t[0] = tlv[0]
-		for i := 1; i < len(tlv); i++ {
-			t = append(t, tlv[i])
-			if tlv[i]&128 != 128 {
-				break
-			}
-		}
-	}
-	offs = len(t)
-
-	switch {
-	case tlv[offs] < 0x80:
-		l = []byte{tlv[offs]}
-		lUint = uint64(tlv[offs])
-	case tlv[offs] > 0x80:
-		ll := tlv[offs] - 0x80
-		switch {
-		case ll > 8:
-			fmt.Println("Length overflow!!!")
-			return 0
-		case ll > 4:
-			l = make([]byte, 8)
-			copy(l, tlv[offs+8-int(tlv[offs]):offs+8])
-			lUint = binary.BigEndian.Uint64(l)
-		case ll > 2:
-			l = make([]byte, 4)
-			copy(l, tlv[offs:])
-			copy(l, tlv[offs+4-int(tlv[offs]):offs+4])
-			lUint = uint64(binary.BigEndian.Uint32(l))
-		case ll > 1:
-			l = make([]byte, 2)
-			copy(l, tlv[offs:])
-			copy(l, tlv[offs+2-int(tlv[offs]):offs+2])
-			lUint = uint64(binary.BigEndian.Uint16(l))
-		default:
-			l = []byte{tlv[offs]}
-			lUint = uint64(tlv[offs])
-		}
-	case tlv[offs] == 0x80:
-		fmt.Println("!!! 0x80 !!!")
-		return 0
-	}
-	offs += len(l)
-
-	fmt.Printf("\n[% 02X]\n", tlv[:offs])
-	fmt.Printf("T=0x%02X(%08b)\n", t, t)
-	fmt.Printf("L=0x%02X(%d)\n", l, lUint)
-	fmt.Printf("V=%s\n", tlv[offs:offs+int(lUint)])
-	fmt.Printf("V=[% 02X]\n", tlv[offs:offs+int(lUint)])
-	return offs + int(lUint)
-}
-
-func printTLV2(p []byte) int {
-	ln, tag, val, err := Decode(p[:])
-	fmt.Printf("\n[% 02X]\n", p[:ln])
-	fmt.Printf("T=0x%02X\n", tag)
-	fmt.Printf("V=%s\n", val)
-	fmt.Printf("E=%v\n", err)
-	return ln
-}
-
 func TestDecode(t *testing.T) {
 	dump := make([]byte, len(testdata))
 	for i, b := range testdata {
@@ -110,43 +37,15 @@ func TestDecode(t *testing.T) {
 	fmt.Println(string(dump))
 
 	n := 0
-	k := 0
-
-	n += printTLV(testdata[n:])
-	k += printTLV2(testdata[k:])
-
-	n += printTLV(testdata[n:])
-	k += printTLV2(testdata[k:])
-
-	n += printTLV(testdata[n:])
-	k += printTLV2(testdata[k:])
-
-	n += printTLV(testdata[n:])
-	k += printTLV2(testdata[k:])
-
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
-	n += printTLV(testdata[n:])
+	for n < len(testdata) {
+		if fl, tag, val, err := Decode(testdata[n:]); err == nil {
+			fmt.Printf("TLV: [% X]\n", testdata[n:(n+fl)])
+			fmt.Printf("T: [% X]\n", tag)
+			fmt.Printf("V: [% X]\n", val)
+			fmt.Printf("V: %s\n\n", string(val))
+			n += fl
+		} else {
+			t.Fatal(err)
+		}
+	}
 }
