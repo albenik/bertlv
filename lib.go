@@ -3,6 +3,8 @@ package bertlv
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -80,18 +82,15 @@ type TLV struct {
 	Children []*TLV
 }
 
-type Codec struct {
-	EndMark []byte // For complex tags
+func (tlv *TLV) String() string {
+	list := make([]string, 0, len(tlv.Children))
+	for _, child := range tlv.Children {
+		list = append(list, child.String())
+	}
+	return fmt.Sprintf("TLV(%X;[% X];children=[%s])", tlv.Tag, tlv.Value, strings.Join(list, ","))
 }
 
-const complexBit = 1 << 5
-
-var (
-	GenericCodec = Codec{EndMark: []byte{0x00, 0x00}}
-	Arcus2Codec  = Codec{EndMark: []byte{0xD1}}
-)
-
-func (codec *Codec) PutValLen(buf []byte, x int) int {
+func PutValLen(buf []byte, x int) int {
 	if x < 0x80 {
 		buf[0] = byte(x)
 		return 1
@@ -106,7 +105,7 @@ func (codec *Codec) PutValLen(buf []byte, x int) int {
 	return i
 }
 
-func (codec *Codec) ValLen(buf []byte) (int, int, error) {
+func ValLen(buf []byte) (int, int, error) {
 	if len(buf) == 0 {
 		return 0, 0, errors.New("tag buffer too small (L1)")
 	}
@@ -128,9 +127,9 @@ func (codec *Codec) ValLen(buf []byte) (int, int, error) {
 	return int(binary.BigEndian.Uint64(tmp[:])), int(lenbytes) + 1, nil
 }
 
-func (codec *Codec) Encode(t, v []byte) []byte {
+func Encode(t, v []byte) []byte {
 	l := make([]byte, 9)
-	n := codec.PutValLen(l, len(v))
+	n := PutValLen(l, len(v))
 	buf := make([]byte, 0, len(t)+n+len(v))
 	buf = append(buf, t...)
 	buf = append(buf, l[:n]...)
@@ -138,19 +137,10 @@ func (codec *Codec) Encode(t, v []byte) []byte {
 	return buf
 }
 
-func (codec *Codec) Decode(buf []byte) (int, *TLV, error) {
-	tlvSize := 0
-	for {
-		if len(buf) < 2 {
-			return 0, nil, errors.New("tag buffer too small (T)")
-		}
-		if !bytes.HasPrefix(buf, codec.EndMark) {
-			break
-		}
-		buf = buf[len(codec.EndMark):]
-		tlvSize += len(codec.EndMark)
+func Decode(buf []byte) (int, *TLV, error) {
+	if len(buf) < 2 {
+		return 0, nil, errors.New("tag buffer too small (T)")
 	}
-
 	var tag []byte
 	if buf[0]&0x1F == 0x1F {
 		for i := 1; i < len(buf); i++ {
@@ -165,12 +155,13 @@ func (codec *Codec) Decode(buf []byte) (int, *TLV, error) {
 	}
 
 	tagSz := len(tag)
-	vlen, lenSz, err := codec.ValLen(buf[tagSz:])
+	vlen, lenSz, err := ValLen(buf[tagSz:])
 	if err != nil {
 		return 0, nil, err
 	}
 
 	voffs := tagSz + lenSz
+	tlvSize := 0
 	if vlen < 0 {
 		tlvSize += voffs
 	} else {
@@ -195,10 +186,10 @@ func (codec *Codec) Decode(buf []byte) (int, *TLV, error) {
 	tlv.Children = make([]*TLV, 0, 16)
 	offs := 0
 	for offs < len(cbuf) {
-		if bytes.HasPrefix(cbuf[offs:], codec.EndMark) {
+		if bytes.HasPrefix(cbuf[offs:], []byte{0x00, 0x00}) {
 			return tlvSize + 1, &tlv, nil
 		}
-		subsz, subtlv, suberr := codec.Decode(cbuf[offs:])
+		subsz, subtlv, suberr := Decode(cbuf[offs:])
 		if suberr != nil {
 			return 0, nil, errors.Wrap(suberr, "sub-tlv parse error")
 		}
