@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/albenik/goerrors"
 )
 
 /*

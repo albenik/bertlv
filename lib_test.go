@@ -1,13 +1,13 @@
-package bertlv
+package bertlv_test
 
 import (
-	"fmt"
 	"testing"
 
+	"github.com/albenik/bertlv"
 	"github.com/stretchr/testify/assert"
 )
 
-var testdata = []byte{
+var realData = []byte{
 	0x89, 0x06, 0x36, 0x32, 0x31, 0x30, 0x32, 0x39, 0x1f, 0x03, 0x0c, 0x37, 0x31, 0x37, 0x32, 0x31, 0x34, 0x38, 0x36,
 	0x38, 0x30, 0x31, 0x31, 0x9f, 0x1c, 0x08, 0x50, 0x30, 0x31, 0x30, 0x35, 0x39, 0x39, 0x34, 0x4f, 0x07, 0xa0, 0x00,
 	0x00, 0x00, 0x03, 0x10, 0x10, 0x50, 0x0a, 0x56, 0x69, 0x73, 0x61, 0x20, 0x44, 0x65, 0x62, 0x69, 0x74, 0x95, 0x05,
@@ -39,37 +39,27 @@ var testtlvs = []tlv{
 func TestEncodeDecode(t *testing.T) {
 	for n, rec := range testtlvs {
 		const msg = "Record %d"
-		enc := Encode(rec.tag, rec.val)
+		enc := bertlv.Encode(rec.tag, rec.val)
 		assert.Equal(t, rec.tlv, enc, msg, n)
-		l, tag, val, err := Decode(enc)
+		ln, tag, err := bertlv.Decode(enc)
 		assert.NoError(t, err)
-		assert.Equal(t, len(rec.tlv), l, msg, n)
-		assert.Equal(t, rec.tag, tag, msg, n)
-		assert.Equal(t, rec.val, val, msg, n)
+		assert.Equal(t, len(rec.tlv), ln, msg, n)
+		assert.Equal(t, rec.tag, tag.Tag, msg, n)
+		assert.Equal(t, rec.val, tag.Value, msg, n)
 	}
 }
 
-func TestDecode(t *testing.T) {
-	dump := make([]byte, len(testdata))
-	for i, b := range testdata {
-		if b < 32 || b > 127 {
-			dump[i] = '.'
-		} else {
-			dump[i] = testdata[i]
-		}
-	}
-	fmt.Println(string(dump))
-
+func TestDecode_RealData(t *testing.T) {
 	n := 0
-	for n < len(testdata) {
-		if fl, tag, val, err := Decode(testdata[n:]); err == nil {
-			fmt.Printf("TLV: [% X]\n", testdata[n:(n+fl)])
-			fmt.Printf("T: [% X]\n", tag)
-			fmt.Printf("V: [% X]\n", val)
-			fmt.Printf("V: %s\n\n", string(val))
-			n += fl
+	for n < len(realData) {
+		if ln, _, err := bertlv.Decode(realData[n:]); err == nil {
+			if !assert.NoError(t, err) {
+				t.FailNow()
+			}
+			n += ln
 		} else {
 			t.Fatal(err)
 		}
 	}
+	assert.Equal(t, len(realData), n)
 }
