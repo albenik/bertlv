@@ -1,12 +1,8 @@
 package bertlv
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"strings"
-
-	"github.com/albenik/goerrors"
 )
 
 /*
@@ -77,125 +73,45 @@ import (
 */
 
 type TLV struct {
-	Tag      []byte
-	Value    []byte
+	T      []byte
+	V      []byte
+	LUndef bool // if true length will be written as undefined (0x80) for complex tag
+
 	Children []*TLV
 }
 
+func (tlv *TLV) L() uint64 {
+	if tlv.IsComplex() {
+		l := uint64(0)
+		for _, ch := range tlv.Children {
+			l += ch.Size()
+		}
+		return l
+	} else {
+		return uint64(len(tlv.V))
+	}
+}
+
+func (tlv *TLV) Size() uint64 {
+	l := tlv.L()
+	if tlv.LUndef {
+		l += 2 // NULL TLV mark at end
+	}
+	return uint64(len(tlv.T)) + uint64(calcLenSize(l)) + l
+}
+
+func (tlv *TLV) IsComplex() bool {
+	return len(tlv.T) > 0 && tlv.T[0]&0x20 == 0x20
+}
+
 func (tlv *TLV) String() string {
-	list := make([]string, 0, len(tlv.Children))
-	for _, child := range tlv.Children {
-		list = append(list, child.String())
-	}
-	return fmt.Sprintf("TLV(%X;[% X];children=[%s])", tlv.Tag, tlv.Value, strings.Join(list, ","))
-}
-
-func PutValLen(buf []byte, x int) int {
-	if x < 0x80 {
-		buf[0] = byte(x)
-		return 1
-	}
-	i := 1
-	for x >= 0x80 {
-		buf[i] = byte(x)
-		x >>= 8
-		i++
-	}
-	buf[0] = byte(0x7F + i)
-	return i
-}
-
-func ValLen(buf []byte) (int, int, error) {
-	if len(buf) == 0 {
-		return 0, 0, errors.New("tag buffer too small (L1)")
-	}
-	if buf[0] < 0x80 {
-		return int(buf[0]), 1, nil
-	}
-	lenbytes := buf[0] - 0x80
-	if lenbytes == 0 { // Complex TLV
-		return -1, 1, nil
-	}
-	if lenbytes > 8 {
-		return 0, 0, errors.New("invalid tag length")
-	}
-	if len(buf) < int(lenbytes)+1 {
-		return 0, 0, errors.New("tag buffer too small (L2)")
-	}
-	var tmp [8]byte
-	copy(tmp[8-lenbytes:], buf[1:1+lenbytes])
-	return int(binary.BigEndian.Uint64(tmp[:])), int(lenbytes) + 1, nil
-}
-
-func Encode(t, v []byte) []byte {
-	l := make([]byte, 9)
-	n := PutValLen(l, len(v))
-	buf := make([]byte, 0, len(t)+n+len(v))
-	buf = append(buf, t...)
-	buf = append(buf, l[:n]...)
-	buf = append(buf, v...)
-	return buf
-}
-
-func Decode(buf []byte) (int, *TLV, error) {
-	if len(buf) < 2 {
-		return 0, nil, errors.New("tag buffer too small (T)")
-	}
-	var tag []byte
-	if buf[0]&0x1F == 0x1F {
-		for i := 1; i < len(buf); i++ {
-			if buf[i]&0x80 != 0x80 {
-				tag = make([]byte, i+1)
-				copy(tag, buf[0:])
-				break
-			}
+	if len(tlv.Children) > 0 {
+		list := make([]string, 0, len(tlv.Children))
+		for _, child := range tlv.Children {
+			list = append(list, child.String())
 		}
+		return fmt.Sprintf("TLV{T:[% X], Children: [%s])", tlv.T, strings.Join(list, ","))
 	} else {
-		tag = []byte{buf[0]}
+		return fmt.Sprintf("TLV{T:[% X], V:[% X]}", tlv.T, tlv.V)
 	}
-
-	tagSz := len(tag)
-	vlen, lenSz, err := ValLen(buf[tagSz:])
-	if err != nil {
-		return 0, nil, err
-	}
-
-	voffs := tagSz + lenSz
-	tlvSize := 0
-	if vlen < 0 {
-		tlvSize += voffs
-	} else {
-		tlvSize += voffs + vlen
-	}
-	if len(buf) < tlvSize {
-		return 0, nil, errors.New("tag buffer too small (V)")
-	}
-
-	var val []byte
-	if vlen > 0 {
-		val = make([]byte, vlen)
-		copy(val, buf[voffs:])
-	}
-	tlv := TLV{Tag: tag, Value: val}
-
-	if vlen >= 0 {
-		return tlvSize, &tlv, nil
-	}
-
-	cbuf := buf[tlvSize:]
-	tlv.Children = make([]*TLV, 0, 16)
-	offs := 0
-	for offs < len(cbuf) {
-		if bytes.HasPrefix(cbuf[offs:], []byte{0x00, 0x00}) {
-			return tlvSize + 1, &tlv, nil
-		}
-		subsz, subtlv, suberr := Decode(cbuf[offs:])
-		if suberr != nil {
-			return 0, nil, errors.Wrap(suberr, "sub-tlv parse error")
-		}
-		tlv.Children = append(tlv.Children, subtlv)
-		tlvSize += subsz
-		offs += subsz
-	}
-	return 0, nil, errors.New("comlex tlv end marker missing")
 }
