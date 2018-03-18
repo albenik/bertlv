@@ -1,11 +1,9 @@
 [prune]
-  non-go = true
   go-tests = true
-  unused-packages = true
 
 [[constraint]]
-  name = "github.com/albenik/goerrors"
-  branch = "master"
+  name = "github.com/pkg/errors"
+  version = "0.8.0"
 
 [[constraint]]
   name = "github.com/stretchr/testify"

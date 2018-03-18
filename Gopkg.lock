@@ -2,16 +2,16 @@
 
 
 [[projects]]
-  branch = "master"
-  name = "github.com/albenik/goerrors"
-  packages = ["."]
-  revision = "e3bbd25c4cb9f865a64977b6f1fd325cf538c53e"
-
-[[projects]]
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   revision = "346938d642f2ec3594ed81d874461961cd0faa76"
   version = "v1.1.0"
+
+[[projects]]
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
 
 [[projects]]
   name = "github.com/pmezard/go-difflib"
@@ -28,6 +28,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0c3d24383c20130c8ba96072c8d08db6c0c8df3fcc57d38e44aab6a163edb458"
+  inputs-digest = "6f987bdbc117b6942ad1fdc88e7b8f13d5c68d77eb46ac1c0b9400fdb7a5b3ed"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	errs "errors"
 
-	"github.com/albenik/goerrors"
+	"github.com/pkg/errors"
 )
 
 var errUndefinedLength = errs.New("undefined length")
@@ -31,7 +31,7 @@ func Decode(p []byte) (*TLV, error) {
 
 	tlSize := uint64(len(tag)) + uint64(n)
 	if tlSize+l > uint64(len(p)) {
-		return nil, errors.Newf("[% X] %d %d", p, tlSize, l)
+		return nil, errors.Errorf("[% X] %d %d", p, tlSize, l)
 		//return nil, errors.New("simple tlv value data too short")
 	}
 

@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"math/bits"
 
-	"github.com/albenik/goerrors"
+	"github.com/pkg/errors"
 )
 
 func calcLenSize(l uint64) uint8 {
@@ -36,7 +36,7 @@ func encodeLen(l uint64) []byte {
 
 func encodeComlex(buf *bytes.Buffer, tlv *TLV) error {
 	if len(tlv.Children) == 0 {
-		return errors.Newf("missing children for complex tag [% X]", tlv.T)
+		return errors.Errorf("missing children for complex tag [% X]", tlv.T)
 	}
 
 	if tlv.LUndef {
